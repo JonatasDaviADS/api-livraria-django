@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Livraria</title>
+    <style>
+        /* ===== Página ===== */
+        body {
+            font-family: "Amazon Ember", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #eaeded;
+        }
+        /* ===== Cabeçalho escuro ===== */
+        header {
+            background-color: #131921;
+            padding: 10px 20px;
+            display: flex;              /* logo e busca lado a lado */
+            align-items: center;
+        }
+        .logo {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: bold;
+            margin-right: 20px;
+            text-decoration: none;
+        }
+        .logo span {
+            color: #f90;                /* "API" em laranja */
+        }
+        /* ===== Barra de busca ===== */
+        .search-container {
+            display: flex;
+            flex-grow: 1;               /* ocupa todo o espaço que sobrar */
+            height: 40px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .search-container input {
+            flex-grow: 1;
+            padding: 0 10px;
+            border: none;
+            outline: none;
+            font-size: 15px;
+        }
+        .search-container button {
+            background-color: #febd69;
+            border: none;
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #111;
+        }
+        .search-container button:hover {
+            background-color: #f3a847;
+        }
+        /* ===== Grade de cards ===== */
+        main {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* quantos cards couberem, mín. 250px */
+            gap: 20px;
+        }
+        .card {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+        }
+        .card img {
+            width: 100%;
+            height: 250px;
+            object-fit: contain;        /* imagem inteira, sem cortar */
+            margin-bottom: 15px;
+        }
+        .title {
+            font-size: 16px;
+            color: #0f1111;
+            margin: 0 0 4px 0;
+            font-weight: normal;
+        }
+        .author {
+            font-size: 14px;
+            color: #565959;
+            margin-bottom: 8px;
+        }
+        .price {
+            font-size: 28px;
+            color: #b12704;
+            margin-bottom: 8px;
+        }
+        .details {
+            font-size: 12px;
+            color: #565959;
+            margin-top: auto;           /* empurra os detalhes para o rodapé do card */
+        }
+    </style>
+</head>
+<body>
+    <!-- Cabeçalho: clicar no logo recarrega todos os livros -->
+    <header>
+        <a href="#" class="logo" onclick="carregarLivros()">Livros<span>API</span></a>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Pesquisar por gênero ou ano (ex: Ficção, 2023)">
+            <button onclick="realizarBusca()">Pesquisar</button>
+        </div>
+    </header>
+
+    <!-- Grade vazia: o JavaScript preenche com os cards -->
+    <main>
+        <div class="grid" id="gridLivros"></div>
+    </main>
+
+    <script>
+        // 1) Busca os livros na API (por padrão, a lista completa)
+        async function carregarLivros(url = 'http://127.0.0.1:8000/api/livros/') {
+            try {
+                const resposta = await fetch(url);       // faz o GET na API do Django
+                const dados = await resposta.json();     // converte a resposta em lista JS
+                renderizarInterface(dados);              // manda desenhar na tela
+            } catch (erro) {
+                // cai aqui se o Django estiver desligado ou o CORS bloquear
+                document.getElementById('gridLivros').innerHTML = '<p>Erro ao conectar com a API do Django.</p>';
+            }
+        }
+
+        // 2) Desenha um card para cada livro
+        function renderizarInterface(livros) {
+            const grid = document.getElementById('gridLivros');
+            grid.innerHTML = '';                         // limpa a grade antes de redesenhar
+
+            livros.forEach(livro => {
+                // "59.90" (texto) → número → "R$ 59,90"
+                const valorFormatado = parseFloat(livro.valor).toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                });
+
+                // MELHORIA: sem url_imagem, usa uma capa provisória com o título
+                const capa = livro.url_imagem
+                    || `https://placehold.co/250x350?text=${encodeURIComponent(livro.titulo)}`;
+
+                const card = document.createElement('div');   // cria a "caixinha" do card
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="${capa}" alt="${livro.titulo}">
+                    <h2 class="title">${livro.titulo}</h2>
+                    <div class="author">${livro.autor}</div>
+                    <div class="price">${valorFormatado}</div>
+                    <div class="details">
+                        Gênero: ${livro.genero} <br>
+                        Ano: ${livro.ano}
+                    </div>
+                `;
+                grid.appendChild(card);                   // coloca o card na grade
+            });
+        }
+
+        // 3) Decide qual endpoint chamar conforme o que foi digitado
+        function realizarBusca() {
+            const termo = document.getElementById('searchInput').value.trim();  // tira espaços das pontas
+
+            if (!termo) {
+                carregarLivros();                                                   // vazio → todos
+            } else if (!isNaN(termo)) {
+                carregarLivros(`http://127.0.0.1:8000/api/livros/ano/${termo}/`);   // número → filtro de ano
+            } else {
+                carregarLivros(`http://127.0.0.1:8000/api/livros/genero/${termo}/`); // texto → filtro de gênero
+            }
+        }
+
+        // 4) Ao abrir a página, já carrega todos os livros
+        window.onload = () => carregarLivros();
+    </script>
+</body>
+</html>
